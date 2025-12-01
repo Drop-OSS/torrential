@@ -17,7 +17,7 @@ use axum::{
     response::{AppendHeaders, IntoResponse},
     routing::{get, post},
 };
-use log::{error, info, warn};
+use log::{error, info};
 use serde::Deserialize;
 use tokio::sync::{OnceCell, Semaphore};
 
@@ -71,11 +71,8 @@ async fn serve_file(
         } else {
             info!("generating context...");
             let context_result =
-                create_download_context(init_data, game_id.clone(), version_name.clone()).await;
-            info!("cleaned up semaphore");
-
-            let new_context = context_result.inspect_err(|v| warn!("{:?}", v))?;
-            state.context_cache.insert(key.clone(), new_context);
+                create_download_context(init_data, game_id.clone(), version_name.clone()).await?;
+            state.context_cache.insert(key.clone(), context_result);
 
             info!("continuing download");
 
@@ -123,6 +120,14 @@ async fn serve_file(
 #[derive(Deserialize)]
 struct TokenPayload {
     token: String,
+}
+
+async fn healthcheck(State(state): State<Arc<AppState<'_>>>) -> StatusCode {
+    let inited = state.token.initialized();
+    if !inited {
+        return StatusCode::SERVICE_UNAVAILABLE;
+    }
+    return StatusCode::OK;
 }
 
 async fn set_token(
@@ -205,6 +210,7 @@ async fn main() {
             get(serve_file),
         )
         .route("/token", post(set_token))
+        .route("/healthcheck", get(healthcheck))
         .with_state(shared_state);
 
     // run our app with hyper, listening globally on port 3000

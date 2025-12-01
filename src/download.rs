@@ -29,7 +29,7 @@ pub async fn create_download_context<'a>(
     let backend = backend()?;
 
     let mut chunk_lookup_table =
-        HashMap::with_capacity(context.manifest.values().map(|v| v.ids.len()).sum());
+        HashMap::with_capacity_and_hasher(context.manifest.values().map(|v| v.ids.len()).sum(), Default::default());
 
     for (path, file_chunks) in context.manifest {
         let mut start = 0;
