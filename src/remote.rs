@@ -66,7 +66,8 @@ pub async fn fetch_download_context(
                 .text()
                 .await
                 .unwrap_or("(failed to read body)".to_string())
-        ).into());
+        )
+        .into());
     }
 
     let context: ContextResponseBody = context_response.json().await?;
@@ -74,22 +75,21 @@ pub async fn fetch_download_context(
     Ok(context)
 }
 
-
 #[derive(Deserialize, Debug)]
 #[non_exhaustive]
 pub enum LibraryBackend {
     Filesystem,
-    FlatFilesystem
+    FlatFilesystem,
 }
 
 #[derive(Deserialize)]
 pub struct LibrarySource {
     pub options: serde_json::Value,
     pub id: String,
-    pub backend: LibraryBackend
+    pub backend: LibraryBackend,
 }
 
-pub async fn fetch_library_sources(token: String) -> Result<Vec<LibrarySource>> {
+pub async fn fetch_library_sources(token: &String) -> Result<Vec<LibrarySource>> {
     let source_response = CLIENT
         .get(REMOTE_URL.join("/api/v1/admin/library/sources")?)
         .header("Authorization", format!("Bearer {}", token))
