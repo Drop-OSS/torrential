@@ -1,5 +1,5 @@
 use log::error;
-use reqwest::{StatusCode, Url};
+use reqwest::StatusCode;
 
 #[derive(Debug)]
 pub struct ErrorOption(Result<StatusCode, anyhow::Error>);

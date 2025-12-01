@@ -1,15 +1,11 @@
-use anyhow::{Result, anyhow};
+use anyhow::Result;
 use dashmap::DashMap;
 use droplet_rs::versions::types::{VersionBackend, VersionFile};
 use reqwest::header;
 use simple_logger::SimpleLogger;
 use std::{
-    collections::HashMap,
-    env::set_current_dir,
-    path::PathBuf,
-    str::FromStr,
-    sync::Arc,
-    time::{Duration, Instant},
+    collections::HashMap, env::set_current_dir, path::PathBuf, str::FromStr, sync::Arc,
+    time::Instant,
 };
 use tokio_util::io::ReaderStream;
 
@@ -23,10 +19,7 @@ use axum::{
 };
 use log::{error, info, warn};
 use serde::Deserialize;
-use tokio::{
-    sync::{OnceCell, Semaphore},
-    time::sleep,
-};
+use tokio::sync::{OnceCell, Semaphore};
 
 use crate::{
     download::create_download_context,
@@ -41,8 +34,6 @@ mod util;
 static GLOBAL_CONTEXT_SEMAPHORE: Semaphore = Semaphore::const_new(1);
 
 struct DownloadContext<'a> {
-    library_id: String,
-    library_path: String,
     chunk_lookup_table: HashMap<String, (String, usize, usize)>,
     backend: Box<dyn VersionBackend + Send + Sync + 'a>,
     last_access: Instant,
@@ -57,7 +48,6 @@ struct AppInitData {
 struct AppState<'a> {
     token: OnceCell<AppInitData>,
     context_cache: DashMap<(String, String), DownloadContext<'a>>,
-    working_context_cache: DashMap<(String, String), Semaphore>,
 }
 
 async fn serve_file(
@@ -155,10 +145,11 @@ async fn set_token(
 
     let valid_library_sources = library_sources
         .into_iter()
-        .filter(|v| match v.backend {
-            remote::LibraryBackend::Filesystem | remote::LibraryBackend::FlatFilesystem => true,
-            #[allow(unreachable_patterns)]
-            _ => false,
+        .filter(|v| {
+            matches!(
+                v.backend,
+                remote::LibraryBackend::Filesystem | remote::LibraryBackend::FlatFilesystem
+            )
         })
         .map(|v| {
             let path = PathBuf::from_str(
@@ -206,7 +197,6 @@ async fn main() {
     let shared_state = Arc::new(AppState {
         token: OnceCell::new(),
         context_cache: DashMap::new(),
-        working_context_cache: DashMap::new(),
     });
 
     let app = Router::new()

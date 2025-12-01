@@ -4,9 +4,7 @@ use serde::Deserialize;
 
 #[derive(Deserialize)]
 pub struct DropChunk {
-    pub permissions: usize,
     pub ids: Vec<String>,
-    pub checksums: Vec<String>,
     pub lengths: Vec<usize>,
 }
 

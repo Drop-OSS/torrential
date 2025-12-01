@@ -1,7 +1,6 @@
 use std::{collections::HashMap, time::Instant};
 
 use droplet_rs::versions::create_backend_constructor;
-use log::info;
 use reqwest::StatusCode;
 
 use crate::{AppInitData, DownloadContext, remote::{LibraryBackend, fetch_download_context}, util::ErrorOption};
@@ -41,8 +40,6 @@ pub async fn create_download_context<'a>(
     }
 
     let download_context = DownloadContext {
-        library_id: context.library_id,
-        library_path: context.library_path,
         chunk_lookup_table,
         backend,
         last_access: Instant::now(),

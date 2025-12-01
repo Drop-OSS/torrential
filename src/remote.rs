@@ -10,9 +10,7 @@ use crate::{manifest::DropletManifest, util::ErrorOption};
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ContextResponseBody {
-    timeout: String,
     pub manifest: DropletManifest,
-    version_name: String,
     pub library_id: String,
     pub library_path: String,
 }
@@ -88,7 +86,6 @@ pub enum LibraryBackend {
 pub struct LibrarySource {
     pub options: serde_json::Value,
     pub id: String,
-    name: String,
     pub backend: LibraryBackend
 }
 
