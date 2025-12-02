@@ -1,4 +1,4 @@
-use std::{collections::HashMap, path::PathBuf, time::Instant};
+use std::{collections::HashMap, hash::RandomState, time::Instant};
 
 use droplet_rs::versions::{create_backend_constructor, types::VersionBackend};
 use reqwest::StatusCode;
@@ -9,7 +9,7 @@ use crate::{
     util::ErrorOption,
 };
 
-pub async fn create_download_context<'a>(
+pub async fn create_download_context(
     init_data: &AppInitData,
     game_id: String,
     version_name: String,
@@ -21,7 +21,7 @@ pub async fn create_download_context<'a>(
 
     let mut chunk_lookup_table = HashMap::with_capacity_and_hasher(
         context.manifest.values().map(|v| v.ids.len()).sum(),
-        Default::default(),
+        RandomState::default(),
     );
 
     for (path, file_chunks) in context.manifest {

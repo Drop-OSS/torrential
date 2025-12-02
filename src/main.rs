@@ -4,7 +4,7 @@ use droplet_rs::versions::types::{MinimumFileObject, VersionBackend, VersionFile
 use reqwest::header;
 use simple_logger::SimpleLogger;
 use std::{
-    collections::HashMap, env::set_current_dir, path::PathBuf, str::FromStr, sync::Arc,
+    collections::HashMap, env::set_current_dir, path::PathBuf, str::FromStr as _, sync::Arc,
     time::Instant,
 };
 use tokio_util::io::ReaderStream;
@@ -101,7 +101,7 @@ async fn set_token(
 
     let valid_library_sources = filter_library_sources(library_sources);
 
-    set_generated_token(state, token, valid_library_sources)?;
+    set_generated_token(&state, token, valid_library_sources)?;
 
     info!("connected to drop server successfully");
 
@@ -139,7 +139,7 @@ fn initialise_logger() {
 }
 
 async fn acquire_permit<'a>() -> SemaphorePermit<'a> {
-    GLOBAL_CONTEXT_SEMAPHORE
+    return GLOBAL_CONTEXT_SEMAPHORE
         .acquire()
         .await
         .expect("failed to acquire semaphore")
@@ -164,12 +164,12 @@ async fn get_file_reader(
         .backend
         .reader(
             &VersionFile {
-                relative_filename: relative_filename.to_string(),
+                relative_filename: relative_filename.clone(),
                 permission: 0,
                 size: 0,
             },
-            start.try_into().unwrap(),
-            end.try_into().unwrap(),
+            start as u64,
+            end as u64,
         )
         .await
         .map_err(|v| {
@@ -221,14 +221,15 @@ async fn healthcheck(State(state): State<Arc<AppState>>) -> StatusCode {
     if !initialised {
         return StatusCode::SERVICE_UNAVAILABLE;
     }
-    return StatusCode::OK;
+    StatusCode::OK
 }
 
 fn check_token_exists(state: &Arc<AppState>, payload: &TokenPayload) -> bool {
     if let Some(existing_data) = state.token.get() {
-        if existing_data.token != payload.token {
-            panic!("already set up but provided with a different token");
-        }
+        assert!(
+            existing_data.token == payload.token,
+            "already set up but provided with a different token"
+        );
         return true;
     }
     false
@@ -261,7 +262,7 @@ fn filter_library_sources(
         .collect()
 }
 fn set_generated_token(
-    state: Arc<AppState>,
+    state: &Arc<AppState>,
     token: String,
     libraries: HashMap<String, (PathBuf, LibraryBackend)>,
 ) -> Result<(), StatusCode> {

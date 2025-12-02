@@ -30,7 +30,7 @@ impl From<ErrorOption> for StatusCode {
             Ok(status) => status,
             Err(err) => {
                 error!("{err:?}");
-                StatusCode::INTERNAL_SERVER_ERROR
+                Self::INTERNAL_SERVER_ERROR
             }
         }
     }

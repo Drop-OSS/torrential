@@ -35,7 +35,7 @@ static REMOTE_URL: LazyLock<Url> = LazyLock::new(|| {
             .map_or("http://localhost:3000", |v| v),
     )
     .expect("failed to parse URL");
-    info!("using Drop server url {}", url);
+    info!("using Drop server url {url}");
     url
 });
 
@@ -50,7 +50,7 @@ pub async fn fetch_download_context(
             game: game_id,
             version: version_name,
         })
-        .header("Authorization", format!("Bearer {}", token))
+        .header("Authorization", format!("Bearer {token}"))
         .send()
         .await?;
 
@@ -65,7 +65,7 @@ pub async fn fetch_download_context(
             context_response
                 .text()
                 .await
-                .unwrap_or("(failed to read body)".to_string())
+                .unwrap_or("(failed to read body)".to_owned())
         )
         .into());
     }
@@ -92,7 +92,7 @@ pub struct LibrarySource {
 pub async fn fetch_library_sources(token: &String) -> Result<Vec<LibrarySource>> {
     let source_response = CLIENT
         .get(REMOTE_URL.join("/api/v1/admin/library/sources")?)
-        .header("Authorization", format!("Bearer {}", token))
+        .header("Authorization", format!("Bearer {token}"))
         .send()
         .await?;
 
@@ -103,7 +103,7 @@ pub async fn fetch_library_sources(token: &String) -> Result<Vec<LibrarySource>>
             source_response
                 .text()
                 .await
-                .unwrap_or("(failed to read body)".to_string())
+                .unwrap_or("(failed to read body)".to_owned())
         ));
     }
 
