@@ -10,10 +10,9 @@ use axum::{
 use dashmap::DashMap;
 use log::info;
 use simple_logger::SimpleLogger;
-use tokio::sync::OnceCell;
+use tokio::{runtime::Handle, sync::OnceCell};
 use torrential::{
-    DropBackendFactory, DropLibraryProvider, DropContextProvider, handlers, set_token,
-    state::AppState,
+    DropBackendFactory, DropContextProvider, DropLibraryProvider, handlers, serve, set_token, state::AppState
 };
 use url::Url;
 
@@ -24,6 +23,9 @@ async fn main() {
     if let Ok(working_directory) = std::env::var("WORKING_DIRECTORY") {
         set_current_dir(working_directory).expect("failed to change working directory");
     }
+
+    let metrics = Handle::current().metrics();
+    info!("using {} threads", metrics.num_workers());
 
     let remote_url = get_remote_url();
 
@@ -44,11 +46,12 @@ async fn main() {
 fn setup_app(shared_state: Arc<AppState>) -> Router {
     Router::new()
         .route(
-            "/api/v1/depot/{game_id}/{version_name}/{chunk_id}",
-            get(handlers::serve_file),
+            "/api/v1/depot/{game_id}/{version_name}/{*chunk_ids}",
+            get(serve::serve_file),
         )
         .route("/token", post(set_token))
         .route("/healthcheck", get(handlers::healthcheck))
+        .route("/invalid", post(handlers::invalidate))
         .with_state(shared_state)
 }
 

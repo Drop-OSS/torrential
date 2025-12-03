@@ -1,5 +1,6 @@
 use tokio::sync::Semaphore;
 mod download;
+pub mod serve;
 pub mod handlers;
 mod manifest;
 mod remote;

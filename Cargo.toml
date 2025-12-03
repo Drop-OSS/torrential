@@ -30,6 +30,7 @@ serde_json = "1.0.145"
 url = { version = "2.5.7", default-features = false }
 tokio-util = { version = "0.7.17", features = ["io"] }
 async-trait = "0.1.89"
+futures-util = "0.3.31"
 
 [lints.clippy]
 pedantic = { level = "warn", priority = -1 }
