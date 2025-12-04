@@ -4,7 +4,7 @@ use dashmap::DashMap;
 use tokio::sync::OnceCell;
 
 use crate::{
-    BackendFactory, DownloadContext, LibraryConfigurationProvider, ContextProvider,
+    BackendFactory, ContextProvider, DownloadContext, LibraryConfigurationProvider,
     remote::LibraryBackend,
 };
 
@@ -36,3 +36,4 @@ impl AppInitData {
         &self.libraries
     }
 }
+

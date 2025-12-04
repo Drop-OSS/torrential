@@ -57,7 +57,7 @@ fn setup_app(shared_state: Arc<AppState>) -> Router {
 
 async fn serve(app: Router) -> Result<(), std::io::Error> {
     let listener = tokio::net::TcpListener::bind("0.0.0.0:5000").await.unwrap();
-    info!("started depot server");
+    info!("started depot server at {}", listener.local_addr()?);
     axum::serve(listener, app).await
 }
 
