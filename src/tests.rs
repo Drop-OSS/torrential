@@ -7,7 +7,7 @@ use reqwest::Client;
 use serde::Serialize;
 use tokio::{runtime::Runtime, sync::OnceCell, time::sleep};
 
-use crate::{handlers, set_token, state::AppState, void::{VoidBackendFactory, VoidContextProvider, VoidLibraryProvider}};
+use crate::{handlers, serve::serve_file, set_token, state::AppState, void::{VoidBackendFactory, VoidContextProvider, VoidLibraryProvider}};
 
 const SERVER_URL: &str = "http://127.0.0.1:5000";
 const BENCHMARK_CHUNK_URL: &str = "/api/v1/depot/test-game/v1/chunk_0";
@@ -79,7 +79,7 @@ fn setup_app(shared_state: Arc<AppState>) -> Router {
     Router::new()
         .route(
             "/api/v1/depot/{game_id}/{version_name}/{chunk_id}",
-            get(handlers::serve_file),
+            get(serve_file),
         )
         .route("/token", post(set_token))
         .route("/healthcheck", get(handlers::healthcheck))

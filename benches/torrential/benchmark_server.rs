@@ -4,7 +4,7 @@ use axum::{Router, routing::{get, post}};
 use dashmap::DashMap;
 use log::info;
 use tokio::sync::OnceCell;
-use torrential::{handlers, set_token, state::AppState, void::{VoidBackendFactory, VoidContextProvider, VoidLibraryProvider}};
+use torrential::{handlers, serve::serve_file, set_token, state::AppState, void::{VoidBackendFactory, VoidContextProvider, VoidLibraryProvider}};
 
 pub const TOTAL_BYTES: usize = 312 * 1024 * 1024;
 pub const CHUNK_SIZE: usize = 4 * 1024 * 1024;
@@ -32,7 +32,7 @@ fn setup_app(shared_state: Arc<AppState>) -> Router {
     Router::new()
         .route(
             "/api/v1/depot/{game_id}/{version_name}/{chunk_id}",
-            get(handlers::serve_file),
+            get(serve_file),
         )
         .route("/token", post(set_token))
         .route("/healthcheck", get(handlers::healthcheck))
