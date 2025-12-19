@@ -1,10 +1,22 @@
-use std::sync::Arc;
+use std::{
+    collections::HashMap,
+    sync::{
+        Arc,
+        atomic::{AtomicUsize, Ordering},
+    },
+    task::Poll,
+};
 
-use axum::{Json, extract::State};
-use reqwest::StatusCode;
-use serde::Deserialize;
+use axum::{Json, body::Body, extract::State, http::{HeaderMap, HeaderValue}, response::IntoResponse};
+use bytes::BufMut;
+use reqwest::{StatusCode, header::CONTENT_TYPE};
+use serde::{Deserialize, Serialize};
+use serde_json::json;
+use std::io::Write;
+use tokio::io::AsyncRead;
+use tokio_util::io::ReaderStream;
 
-use crate::state::AppState;
+use crate::{remote::fetch_instance_games, state::AppState};
 
 pub async fn healthcheck(State(state): State<Arc<AppState>>) -> StatusCode {
     let initialised = state.token.initialized();
@@ -16,14 +28,104 @@ pub async fn healthcheck(State(state): State<Arc<AppState>>) -> StatusCode {
 
 #[derive(Deserialize)]
 pub struct InvalidateBody {
-    game_id: String,
-    version_name: String,
+    game: String,
+    version: String,
 }
 
 pub async fn invalidate(
     State(state): State<Arc<AppState>>,
     Json(payload): Json<InvalidateBody>,
 ) -> StatusCode {
-    state.context_cache.remove(&(payload.game_id, payload.version_name));
+    state.context_cache.remove(&(payload.game, payload.version));
     StatusCode::OK
+}
+
+struct SpeedtestStream {
+    remaining: usize,
+}
+
+impl SpeedtestStream {
+    pub fn new() -> Self {
+        SpeedtestStream {
+            remaining: 1024 * 1024 * 50,
+        }
+    }
+    fn content_length(&self) -> usize {
+        self.remaining
+    }
+}
+const ZERO: [u8; 1024] = [0u8; _];
+impl AsyncRead for SpeedtestStream {
+    fn poll_read(
+        mut self: std::pin::Pin<&mut Self>,
+        cx: &mut std::task::Context<'_>,
+        buf: &mut tokio::io::ReadBuf<'_>,
+    ) -> Poll<std::io::Result<()>> {
+        if self.remaining > 0 {
+            let mut writer = buf.writer();
+
+            let amount = writer.write(&ZERO);
+            match amount {
+                Ok(amount) => self.remaining -= amount,
+                Err(err) => return Poll::Ready(Err(err)),
+            };
+        };
+        return Poll::Ready(Ok(()));
+    }
+}
+
+pub async fn speedtest() -> Result<impl IntoResponse, StatusCode> {
+    let speedtest = SpeedtestStream::new();
+    let ct = speedtest.content_length();
+    let speedtest_stream = ReaderStream::new(speedtest);
+    let body = Body::from_stream(speedtest_stream);
+
+    let mut headers = HeaderMap::new();
+    headers.insert("Content-Type", "application/octet-stream".parse().unwrap());
+    headers.insert("Content-Length", ct.into());
+
+    Ok((headers, body))
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct GameData {
+    version_id: String,
+    compression: String,
+}
+
+#[derive(Serialize)]
+struct Manifest {
+    content: HashMap<String, Vec<GameData>>,
+}
+
+pub async fn manifest(
+    State(state): State<Arc<AppState>>,
+) -> Result<impl IntoResponse, StatusCode> {
+    let games = fetch_instance_games(
+        state
+            .token
+            .get()
+            .ok_or(StatusCode::from_u16(503).unwrap())?,
+    )
+    .await?;
+
+    let mut content = HashMap::new();
+    for game in games {
+        content.insert(
+            game.id,
+            game.versions
+                .into_iter()
+                .map(|v| GameData {
+                    version_id: v.version_id,
+                    compression: "none".to_owned(),
+                })
+                .collect::<Vec<GameData>>(),
+        );
+    }
+
+    let mut headers = HeaderMap::new();
+    headers.insert(CONTENT_TYPE, HeaderValue::from_static("application/json"));
+
+    Ok((headers, json!(Manifest { content }).to_string()))
 }

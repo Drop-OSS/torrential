@@ -23,7 +23,7 @@ simple_logger = { version = "5.1.0", default-features = false, features = [
     "colors",
 ] }
 tokio = { version = "*", features = ["rt-multi-thread", "sync"] }
-droplet-rs = { git = "https://github.com/Drop-OSS/droplet-rs.git" }
+droplet-rs = { git="https://github.com/Drop-OSS/droplet-rs.git" }
 dashmap = "6.1.0"
 anyhow = "1.0.100"
 serde_json = "1.0.145"
@@ -31,6 +31,9 @@ url = { version = "2.5.7", default-features = false }
 tokio-util = { version = "0.7.17", features = ["io"] }
 async-trait = "0.1.89"
 futures-util = "0.3.31"
+ctr = "0.9.2"
+aes = "0.8.4"
+bytes = "*"
 
 [lints.clippy]
 pedantic = { level = "warn", priority = -1 }

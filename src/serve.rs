@@ -1,58 +1,72 @@
-use std::sync::Arc;
+use std::{io::Error, rc::Rc, sync::Arc};
 
+use aes::cipher::{KeyIvInit, StreamCipher};
 use axum::{
     body::Body,
     extract::{Path, State},
     http::HeaderMap,
     response::{AppendHeaders, IntoResponse},
 };
+use bytes::Bytes;
 use dashmap::{DashMap, mapref::one::RefMut};
-use droplet_rs::versions::types::{MinimumFileObject, VersionFile};
+use droplet_rs::{
+    manifest::ChunkData,
+    versions::types::{MinimumFileObject, VersionFile},
+};
+use futures_util::{StreamExt, stream};
 use log::{error, info};
 use reqwest::{StatusCode, header};
 use tokio::sync::SemaphorePermit;
 use tokio_util::io::ReaderStream;
-use futures_util::{StreamExt as _, stream};
-
 
 use crate::{
     DownloadContext, GLOBAL_CONTEXT_SEMAPHORE, download::create_download_context, state::AppState,
 };
 
+type Aes128Ctr64LE = ctr::Ctr64LE<aes::Aes128>;
+
 pub async fn serve_file(
     State(state): State<Arc<AppState>>,
-    Path((game_id, version_name, chunk_ids)): Path<(String, String, String)>,
+    Path((game_id, version_name, chunk_id)): Path<(String, String, String)>,
 ) -> Result<impl IntoResponse, StatusCode> {
     let context_cache = &state.context_cache;
 
-    let mut context = get_or_generate_context(&state, context_cache, game_id, version_name).await?;
+    let mut context = get_or_create_context(&state, context_cache, game_id, version_name).await?;
     context.reset_last_access();
 
-    let chunk_ids = chunk_ids.split("/").collect::<Vec<&str>>();
-    let mut streams = Vec::with_capacity(chunk_ids.len());
-    let mut content_lengths = Vec::with_capacity(chunk_ids.len());
-    let mut total_size = 0;
-    for chunk_id in chunk_ids {
-        let (relative_filename, start, end) = lookup_chunk(chunk_id, &context)?;
-        let reader = get_file_reader(&mut context, relative_filename, start, end).await?;
+    let chunk_data = lookup_chunk(&chunk_id, &context)?;
+    let mut streams = Vec::with_capacity(chunk_data.files.len());
+    let mut content_length = 0;
+
+    for file_entry in &chunk_data.files {
+        let reader = get_file_reader(
+            &mut context,
+            file_entry.filename.clone(),
+            file_entry.start,
+            file_entry.start + file_entry.length,
+        )
+        .await?;
 
         let stream = ReaderStream::new(reader);
         streams.push(stream);
-        content_lengths.push((end - start).to_string());
-
-        total_size += end - start;
+        content_length += file_entry.length;
     }
 
     let stream = stream::iter(streams).flatten();
-    let body: Body = Body::from_stream(stream);
+    let mut cipher = Aes128Ctr64LE::new(&context.manifest.key.into(), &chunk_data.iv.into());
+    let encrypted_stream = stream.chunks(3).map(move |raw| -> Result<Bytes, Error> {
+        let data: Result<Vec<Bytes>, Error> = raw.into_iter().collect();
+        let mut data = data?.concat();
+
+        cipher.apply_keystream(&mut data);
+
+        Ok(data.into())
+    });
+    let body: Body = Body::from_stream(encrypted_stream);
 
     let mut headers = HeaderMap::new();
     headers.insert("Content-Type", "application/octet-stream".parse().unwrap());
-    headers.insert("Content-Length", total_size.to_string().parse().unwrap());
-    headers.insert(
-        "Content-Lengths",
-        content_lengths.join(",").parse().unwrap(),
-    );
+    headers.insert("Content-Length", content_length.into());
 
     Ok((headers, body))
 }
@@ -62,12 +76,16 @@ async fn acquire_permit<'a>() -> SemaphorePermit<'a> {
         .await
         .expect("failed to acquire semaphore");
 }
+/**
+ * Needs to be cloned for reference reasons
+ */
 fn lookup_chunk(
     chunk_id: &str,
     context: &RefMut<'_, (String, String), DownloadContext>,
-) -> Result<(String, usize, usize), StatusCode> {
+) -> Result<ChunkData, StatusCode> {
     context
-        .chunk_lookup_table
+        .manifest
+        .chunks
         .get(chunk_id)
         .cloned()
         .ok_or(StatusCode::NOT_FOUND)
@@ -91,11 +109,11 @@ async fn get_file_reader(
         )
         .await
         .map_err(|v| {
-            error!("reader error: {v:?}");
+            error!("reader error for '{}': {v:?}", relative_filename);
             StatusCode::INTERNAL_SERVER_ERROR
         })
 }
-async fn get_or_generate_context<'a>(
+async fn get_or_create_context<'a>(
     state: &Arc<AppState>,
     context_cache: &'a DashMap<(String, String), DownloadContext>,
     game_id: String,
@@ -114,14 +132,9 @@ async fn get_or_generate_context<'a>(
             Ok(already_done)
         } else {
             info!("generating context for {}...", game_id);
-            let context_result = create_download_context(
-                &*state.metadata_provider,
-                &*state.backend_factory,
-                initialisation_data,
-                game_id.clone(),
-                version_name.clone(),
-            )
-            .await?;
+            let context_result =
+                create_download_context(initialisation_data, game_id.clone(), version_name.clone())
+                    .await?;
 
             state.context_cache.insert(key.clone(), context_result);
 
