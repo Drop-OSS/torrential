@@ -1,6 +1,7 @@
 use std::{
     env::{self, set_current_dir},
     sync::Arc,
+    time::{Duration, Instant},
 };
 
 use axum::{
@@ -10,9 +11,11 @@ use axum::{
 use dashmap::DashMap;
 use log::info;
 use simple_logger::SimpleLogger;
-use tokio::{runtime::Handle, sync::OnceCell};
+use tokio::{runtime::Handle, spawn, sync::OnceCell, time};
 use torrential::{handlers, serve, set_token, state::AppState};
 use url::Url;
+
+const CONTEXT_TTL: u64 = 10 * 60;
 
 #[tokio::main]
 async fn main() {
@@ -29,6 +32,33 @@ async fn main() {
     let shared_state = Arc::new(AppState {
         token: OnceCell::new(),
         context_cache: DashMap::new(),
+    });
+
+    let interval_shared_state = shared_state.clone();
+
+    spawn(async move {
+        let shared_state = interval_shared_state;
+        let mut interval = time::interval(Duration::from_mins(1));
+
+        loop {
+            interval.tick().await;
+            let keys = shared_state
+                .context_cache
+                .iter()
+                .map(|v| v.key().clone())
+                .collect::<Vec<(String, String)>>();
+            for key in keys {
+                let last_access = if let Some(context) = shared_state.context_cache.get(&key) {
+                    context.last_access()
+                } else {
+                    Instant::now()
+                };
+                if last_access.elapsed().as_secs() >= CONTEXT_TTL {
+                    shared_state.context_cache.remove(&key);
+                    info!("cleaned context: {:?}", key);
+                }
+            }
+        }
     });
 
     let app = setup_app(shared_state);

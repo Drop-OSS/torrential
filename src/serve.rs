@@ -1,4 +1,9 @@
-use std::{io::Error, rc::Rc, sync::Arc};
+use std::{
+    cell::{LazyCell, OnceCell},
+    io::Error,
+    rc::Rc,
+    sync::{Arc, LazyLock},
+};
 
 use aes::cipher::{KeyIvInit, StreamCipher};
 use axum::{
@@ -13,10 +18,11 @@ use droplet_rs::{
     manifest::ChunkData,
     versions::types::{MinimumFileObject, VersionFile},
 };
-use futures_util::{StreamExt, stream};
+use futures_util::{Stream, StreamExt, stream};
 use log::{error, info};
-use reqwest::{StatusCode, header};
-use tokio::sync::SemaphorePermit;
+use pin_project_lite::pin_project;
+use reqwest::StatusCode;
+use tokio::sync::{Semaphore, SemaphorePermit};
 use tokio_util::io::ReaderStream;
 
 use crate::{
@@ -24,6 +30,44 @@ use crate::{
 };
 
 type Aes128Ctr64LE = ctr::Ctr64LE<aes::Aes128>;
+
+pin_project! {
+    struct SemaphoreStream<'a, T>
+        where T: Stream
+    {
+        #[pin]
+        stream: T,
+        semaphore: SemaphorePermit<'a>,
+    }
+}
+
+impl<'a, T: Stream> SemaphoreStream<'a, T> {
+    fn new(stream: T, permit: SemaphorePermit<'a>) -> Self {
+        Self {
+            stream,
+            semaphore: permit,
+        }
+    }
+}
+
+impl<'a, T: Stream> Stream for SemaphoreStream<'a, T>
+where
+    T: Stream,
+{
+    type Item = T::Item;
+
+    fn poll_next(
+        self: std::pin::Pin<&mut Self>,
+        cx: &mut std::task::Context<'_>,
+    ) -> std::task::Poll<Option<Self::Item>> {
+        let this = self.project();
+        this.stream.poll_next(cx)
+    }
+}
+
+static SEMPAHORE_COUNT: LazyLock<usize> =
+    LazyLock::new(|| file_open_limit::get().expect("failed to count max open files"));
+static FILE_SEMAPHORE: LazyLock<Semaphore> = LazyLock::new(|| Semaphore::new(*SEMPAHORE_COUNT));
 
 pub async fn serve_file(
     State(state): State<Arc<AppState>>,
@@ -35,6 +79,13 @@ pub async fn serve_file(
     context.reset_last_access();
 
     let chunk_data = lookup_chunk(&chunk_id, &context)?;
+    if chunk_data.files.len() >= *SEMPAHORE_COUNT {
+        return Err(StatusCode::INSUFFICIENT_STORAGE);
+    }
+    let permit = FILE_SEMAPHORE
+        .acquire_many(chunk_data.files.len().try_into().unwrap())
+        .await
+        .map_err(|_| StatusCode::INSUFFICIENT_STORAGE)?;
     let mut streams = Vec::with_capacity(chunk_data.files.len());
     let mut content_length = 0;
 
@@ -54,7 +105,7 @@ pub async fn serve_file(
 
     let stream = stream::iter(streams).flatten();
     let mut cipher = Aes128Ctr64LE::new(&context.manifest.key.into(), &chunk_data.iv.into());
-    let encrypted_stream = stream.chunks(3).map(move |raw| -> Result<Bytes, Error> {
+    let encrypted_stream = stream.chunks(16).map(move |raw| -> Result<Bytes, Error> {
         let data: Result<Vec<Bytes>, Error> = raw.into_iter().collect();
         let mut data = data?.concat();
 
@@ -62,7 +113,8 @@ pub async fn serve_file(
 
         Ok(data.into())
     });
-    let body: Body = Body::from_stream(encrypted_stream);
+    let permit_stream = SemaphoreStream::new(encrypted_stream, permit);
+    let body: Body = Body::from_stream(permit_stream);
 
     let mut headers = HeaderMap::new();
     headers.insert("Content-Type", "application/octet-stream".parse().unwrap());
