@@ -63,7 +63,7 @@ pub async fn fetch_version_data(
     version_id: String,
 ) -> Result<VersionResponseBody, ErrorOption> {
     let version_data_response = CLIENT
-        .get(REMOTE_URL.join("/api/v1/admin/depot/manifest")?)
+        .get(REMOTE_URL.join("/api/v1/admin/depot/torrential/manifest")?)
         .query(&VersionQuery {
             game: game_id,
             version: version_id,
@@ -110,7 +110,7 @@ pub async fn fetch_instance_games(
     init_data: &AppInitData,
 ) -> Result<Vec<SkeletonGame>, ErrorOption> {
     let context_response = CLIENT
-        .get(REMOTE_URL.join("/api/v1/admin/depot/versions")?)
+        .get(REMOTE_URL.join("/api/v1/admin/depot/torrential/versions")?)
         .header("Authorization", format!("Bearer {}", init_data.key))
         .send()
         .await?;
