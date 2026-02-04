@@ -7,7 +7,13 @@ use std::{
     task::Poll,
 };
 
-use axum::{Json, body::Body, extract::State, http::{HeaderMap, HeaderValue}, response::IntoResponse};
+use axum::{
+    Json,
+    body::Body,
+    extract::State,
+    http::{HeaderMap, HeaderValue},
+    response::IntoResponse,
+};
 use bytes::BufMut;
 use reqwest::{StatusCode, header::CONTENT_TYPE};
 use serde::{Deserialize, Serialize};
@@ -16,13 +22,9 @@ use std::io::Write;
 use tokio::io::AsyncRead;
 use tokio_util::io::ReaderStream;
 
-use crate::{remote::fetch_instance_games, state::AppState};
+use crate::{server::download::fetch_instance_games, state::AppState};
 
 pub async fn healthcheck(State(state): State<Arc<AppState>>) -> StatusCode {
-    let initialised = state.token.initialized();
-    if !initialised {
-        return StatusCode::SERVICE_UNAVAILABLE;
-    }
     StatusCode::OK
 }
 
@@ -99,16 +101,8 @@ struct Manifest {
     content: HashMap<String, Vec<GameData>>,
 }
 
-pub async fn manifest(
-    State(state): State<Arc<AppState>>,
-) -> Result<impl IntoResponse, StatusCode> {
-    let games = fetch_instance_games(
-        state
-            .token
-            .get()
-            .ok_or(StatusCode::from_u16(503).unwrap())?,
-    )
-    .await?;
+pub async fn manifest(State(state): State<Arc<AppState>>) -> Result<impl IntoResponse, StatusCode> {
+    let games = fetch_instance_games(&state).await?;
 
     let mut content = HashMap::new();
     for game in games {

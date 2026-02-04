@@ -1,0 +1,24 @@
+syntax = "proto3";
+
+enum ResponseType {
+    ERROR = 0;
+    SERVER_GAMES_RESPONSE = 1;
+    VERSION_RESPONSE = 2;
+}
+
+message Response {
+    string message_id = 1;
+    ResponseType type = 2;
+    bytes data = 3;
+}
+
+enum QueryType {
+    SERVER_GAMES_QUERY = 0;
+    VERSION_QUERY = 1;
+}
+
+message Query {
+    string message_id = 1;
+    QueryType type = 2;
+    bytes data = 3;
+}

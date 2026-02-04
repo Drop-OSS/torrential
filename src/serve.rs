@@ -171,7 +171,6 @@ async fn get_or_create_context<'a>(
     game_id: String,
     version_name: String,
 ) -> Result<RefMut<'a, (String, String), DownloadContext>, StatusCode> {
-    let initialisation_data = state.token.get().ok_or(StatusCode::SERVICE_UNAVAILABLE)?;
     let key = (game_id.clone(), version_name.clone());
 
     if let Some(context) = context_cache.get_mut(&key) {
@@ -185,8 +184,7 @@ async fn get_or_create_context<'a>(
         } else {
             info!("generating context for {}...", game_id);
             let context_result =
-                create_download_context(initialisation_data, game_id.clone(), version_name.clone())
-                    .await?;
+                create_download_context(state, game_id.clone(), version_name.clone()).await?;
 
             state.context_cache.insert(key.clone(), context_result);
 

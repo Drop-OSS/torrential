@@ -1,19 +1,18 @@
 use std::{
-    env::{self, set_current_dir},
+    env::set_current_dir,
     sync::Arc,
     time::{Duration, Instant},
 };
 
 use axum::{
-    Router, handler,
+    Router,
     routing::{get, post},
 };
 use dashmap::DashMap;
 use log::info;
 use simple_logger::SimpleLogger;
-use tokio::{runtime::Handle, spawn, sync::OnceCell, time};
-use torrential::{handlers, serve, set_token, state::AppState};
-use url::Url;
+use tokio::{runtime::Handle, spawn, time};
+use torrential::{handlers, serve, server::create_drop_server, state::AppState};
 
 const CONTEXT_TTL: u64 = 10 * 60;
 
@@ -29,9 +28,11 @@ async fn main() {
     let metrics = Handle::current().metrics();
     info!("using {} threads", metrics.num_workers());
 
+    let server = create_drop_server().await.expect("failed to connect to drop server");
+
     let shared_state = Arc::new(AppState {
-        token: OnceCell::new(),
         context_cache: DashMap::new(),
+        server: server,
     });
 
     let interval_shared_state = shared_state.clone();
@@ -74,7 +75,6 @@ fn setup_app(shared_state: Arc<AppState>) -> Router {
         )
         .route("/api/v1/depot/manifest.json", get(handlers::manifest))
         .route("/api/v1/depot/speedtest", get(handlers::speedtest))
-        .route("/key", post(set_token))
         .route("/healthcheck", get(handlers::healthcheck))
         .route("/invalidate", post(handlers::invalidate))
         .with_state(shared_state)
