@@ -33,5 +33,5 @@ pub async fn fetch_instance_games(app_state: &AppState) -> Result<Vec<SkeletonGa
 
     let response: ServerGamesResponse = app_state.server.wait_for_message_id(&message_id).await?;
 
-    return Ok(response.games);
+    Ok(response.games)
 }

@@ -25,7 +25,7 @@ async fn main() {
     initialise_logger();
 
     if let Ok(working_directory) = std::env::var("WORKING_DIRECTORY") {
-        info!("moving to working directory {}", working_directory);
+        info!("moving to working directory {working_directory}");
         set_current_dir(working_directory).expect("failed to change working directory");
     }
 
@@ -38,7 +38,7 @@ async fn main() {
 
     let shared_state = Arc::new(AppState {
         context_cache: DashMap::new(),
-        server: server,
+        server,
     });
 
     let interval_shared_state = shared_state.clone();
@@ -62,7 +62,7 @@ async fn main() {
                 };
                 if last_access.elapsed().as_secs() >= CONTEXT_TTL {
                     shared_state.context_cache.remove(&key);
-                    info!("cleaned context: {:?}", key);
+                    info!("cleaned context: {key:?}");
                 }
             }
         }
@@ -70,7 +70,7 @@ async fn main() {
 
     let app = setup_app(shared_state);
 
-    serve(app).await.unwrap();
+    serve(app).await.expect("failed to serve app");
 }
 
 fn setup_app(shared_state: Arc<AppState>) -> Router {
@@ -87,7 +87,9 @@ fn setup_app(shared_state: Arc<AppState>) -> Router {
 }
 
 async fn serve(app: Router) -> Result<(), std::io::Error> {
-    let listener = tokio::net::TcpListener::bind("0.0.0.0:5000").await.unwrap();
+    let listener = tokio::net::TcpListener::bind("0.0.0.0:5000")
+        .await
+        .expect("failed to bind tcp server");
     info!("started depot server");
     axum::serve(listener, app).await
 }
@@ -96,5 +98,5 @@ fn initialise_logger() {
     SimpleLogger::new()
         .with_level(log::LevelFilter::Info)
         .init()
-        .unwrap();
+        .expect("failed to init logger");
 }

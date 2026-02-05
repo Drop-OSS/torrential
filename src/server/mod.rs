@@ -87,7 +87,7 @@ impl DropServer {
     }
 
     /**
-    Long-lived subroutine that never returns, runs the recieve_loop and reconnects
+    Long-lived subroutine that never returns, runs the `recieve_loop` and reconnects
     as necessary
     */
     async fn recieve_subroutine(myself: Arc<DropServer>, read_stream: OwnedReadHalf) -> ! {
@@ -95,7 +95,7 @@ impl DropServer {
 
         loop {
             if let Err(err) = Self::recieve_loop(myself.clone(), &mut buffered_reader).await {
-                warn!("server disconnected with error: {:?}", err);
+                warn!("server disconnected with error: {err:?}");
 
                 let (drop_stream, _) = myself
                     .server
@@ -130,14 +130,11 @@ impl DropServer {
 
         let message = message.value();
 
-        match message.type_.unwrap() {
-            crate::proto::core::TorrentialBoundType::ERROR => {
-                return Err(anyhow!(String::from_utf8(message.data.clone()).unwrap()));
-            }
-            _ => {
-                let response = T::parse_from_bytes(&message.data)?;
-                return Ok(response);
-            }
+        if message.type_.unwrap() == crate::proto::core::TorrentialBoundType::ERROR {
+            Err(anyhow!(String::from_utf8(message.data.clone()).unwrap()))
+        } else {
+            let response = T::parse_from_bytes(&message.data)?;
+            Ok(response)
         }
     }
 

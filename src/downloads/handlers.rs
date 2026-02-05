@@ -67,9 +67,9 @@ impl AsyncRead for SpeedtestStream {
             match amount {
                 Ok(amount) => self.remaining -= amount,
                 Err(err) => return Poll::Ready(Err(err)),
-            };
-        };
-        return Poll::Ready(Ok(()));
+            }
+        }
+        Poll::Ready(Ok(()))
     }
 }
 

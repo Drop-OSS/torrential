@@ -1,10 +1,9 @@
 use std::{
     path::Path,
-    sync::{Arc, LazyLock},
+    sync::Arc,
 };
 
 use anyhow::anyhow;
-use dashmap::DashMap;
 use droplet_rs::versions::types::VersionBackend;
 use protobuf::Message;
 
@@ -48,7 +47,7 @@ pub async fn has_backend_rpc(
 
 fn create_backend(path: &String) -> Result<Box<dyn VersionBackend + Send + Sync>, anyhow::Error> {
     let backend_constructor = droplet_rs::versions::create_backend_constructor(Path::new(path))
-        .ok_or(anyhow!("backend doesn't exist at path {}", path))?;
+        .ok_or(anyhow!("backend doesn't exist at path {path}"))?;
     let backend = backend_constructor()?;
 
     Ok(backend)

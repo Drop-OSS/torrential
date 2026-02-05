@@ -22,11 +22,12 @@ pub struct DownloadContext {
     last_access: Instant,
 }
 impl DownloadContext {
+    #[must_use] 
     pub fn last_access(&self) -> Instant {
         self.last_access
     }
     pub fn reset_last_access(&mut self) {
-        self.last_access = Instant::now()
+        self.last_access = Instant::now();
     }
 }
 
@@ -71,7 +72,7 @@ fn create_backend(
         create_backend_constructor(&version_path).ok_or(StatusCode::INTERNAL_SERVER_ERROR)?;
 
     let backend = backend()
-        .inspect_err(|err| warn!("failed to create version backend: {:?}", err))
+        .inspect_err(|err| warn!("failed to create version backend: {err:?}"))
         .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
     Ok(backend)
 }

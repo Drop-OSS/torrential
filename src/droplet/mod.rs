@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use log::{info, warn};
+use log::warn;
 
 use crate::{proto::{core::{DropBoundType, TorrentialBound}, droplet::RpcError}, server::DropServer};
 
@@ -15,7 +15,7 @@ where
     let message_id = message.message_id.clone();
     let result = rpc(server.clone(), message).await;
     if let Err(err) = result {
-        warn!("manifest generation failed with err: {:?}", err);
+        warn!("manifest generation failed with err: {err:?}");
         let mut manifest_err = RpcError::new();
         manifest_err.error = err.to_string();
         let _ = server

@@ -49,7 +49,7 @@ impl<'a, T: Stream> SemaphoreStream<'a, T> {
     }
 }
 
-impl<'a, T: Stream> Stream for SemaphoreStream<'a, T>
+impl<T: Stream> Stream for SemaphoreStream<'_, T>
 where
     T: Stream,
 {
@@ -160,7 +160,7 @@ async fn get_file_reader(
         )
         .await
         .map_err(|v| {
-            error!("reader error for '{}': {v:?}", relative_filename);
+            error!("reader error for '{relative_filename}': {v:?}");
             StatusCode::INTERNAL_SERVER_ERROR
         })
 }
@@ -181,13 +181,13 @@ async fn get_or_create_context<'a>(
         if let Some(already_done) = context_cache.get_mut(&key) {
             Ok(already_done)
         } else {
-            info!("generating context for {}...", game_id);
+            info!("generating context for {game_id}...");
             let context_result =
                 create_download_context(state, game_id.clone(), version_name.clone()).await?;
 
             state.context_cache.insert(key.clone(), context_result);
 
-            info!("continuing download for {}", game_id);
+            info!("continuing download for {game_id}");
 
             drop(permit);
 

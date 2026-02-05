@@ -19,10 +19,9 @@ use crate::{
 static READER_SEMAPHORE: LazyLock<Semaphore> = LazyLock::new(|| {
     let cores = std::env::var("READER_THREADS")
         .ok()
-        .map(|v| str::parse::<usize>(&v).ok())
-        .flatten()
+        .and_then(|v| str::parse::<usize>(&v).ok())
         .unwrap_or(num_cpus::get() / 2);
-    info!("using {} import threads", cores);
+    info!("using {cores} import threads");
     Semaphore::new(cores)
 });
 
