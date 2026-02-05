@@ -12,7 +12,11 @@ use dashmap::DashMap;
 use log::info;
 use simple_logger::SimpleLogger;
 use tokio::{runtime::Handle, spawn, time};
-use torrential::{handlers, serve, server::create_drop_server, state::AppState};
+use torrential::{
+    downloads::{handlers, serve},
+    server::create_drop_server,
+    state::AppState,
+};
 
 const CONTEXT_TTL: u64 = 10 * 60;
 
@@ -28,7 +32,9 @@ async fn main() {
     let metrics = Handle::current().metrics();
     info!("using {} threads", metrics.num_workers());
 
-    let server = create_drop_server().await.expect("failed to connect to drop server");
+    let server = create_drop_server()
+        .await
+        .expect("failed to connect to drop server");
 
     let shared_state = Arc::new(AppState {
         context_cache: DashMap::new(),

@@ -1,24 +1,30 @@
 syntax = "proto3";
 
-enum ResponseType {
+enum TorrentialBoundType {
     ERROR = 0;
     SERVER_GAMES_RESPONSE = 1;
     VERSION_RESPONSE = 2;
+    GENERATE_MANIFEST = 3;
 }
 
-message Response {
+message TorrentialBound {
     string message_id = 1;
-    ResponseType type = 2;
+    TorrentialBoundType type = 2;
     bytes data = 3;
 }
 
-enum QueryType {
+enum DropBoundType {
     SERVER_GAMES_QUERY = 0;
     VERSION_QUERY = 1;
+
+    MANIFEST_PROGRESS = 2;
+    MANIFEST_LOG = 3;
+    MANIFEST_COMPLETE = 4;
+    MANIFEST_ERROR = 5;
 }
 
-message Query {
+message DropBound {
     string message_id = 1;
-    QueryType type = 2;
+    DropBoundType type = 2;
     bytes data = 3;
 }

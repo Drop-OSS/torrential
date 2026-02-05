@@ -1,4 +1,4 @@
-use crate::proto::{self, version::version_response::Manifest};
+use crate::proto::version::version_response::Manifest;
 
 fn fixed_length<T, const N: usize>(v: Vec<T>) -> [T; N] {
     v.try_into()

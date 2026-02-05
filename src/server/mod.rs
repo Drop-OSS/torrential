@@ -1,7 +1,8 @@
-use std::sync::{Arc, Mutex};
+use std::{mem, sync::Arc};
 
 use anyhow::anyhow;
-use protobuf::Message;
+use log::{info, warn};
+use protobuf::{EnumOrUnknown, Message};
 use tokio::{
     io::{AsyncReadExt, AsyncWriteExt as _, BufReader},
     net::{
@@ -9,57 +10,102 @@ use tokio::{
         tcp::{OwnedReadHalf, OwnedWriteHalf},
     },
     spawn,
+    sync::Mutex,
 };
 use waitmap::WaitMap;
 
-use crate::proto::core::Response;
+use crate::{
+    droplet::manifest::generate_manifest,
+    proto::core::{DropBound, DropBoundType, TorrentialBound, TorrentialBoundType},
+};
 
 pub mod download;
 
 pub struct DropServer {
+    server: TcpListener,
     write_stream: Mutex<OwnedWriteHalf>,
-    waitmap: WaitMap<String, Response>,
+    waitmap: WaitMap<String, TorrentialBound>,
 }
 
 impl DropServer {
+    /**
+    Reads from the socket, and tries to parse it into a message,
+    and then updates the waitmap with the corresponding message ID
+    and content
+    */
+    async fn recieve_loop(
+        myself: Arc<DropServer>,
+        buffered_reader: &mut BufReader<OwnedReadHalf>,
+    ) -> Result<(), anyhow::Error> {
+        let mut length_buffer: [u8; 8] = [0; 8];
+        buffered_reader.read_exact(&mut length_buffer).await?;
+
+        let length = usize::from_le_bytes(length_buffer);
+        let mut buffer = vec![0; length];
+
+        buffered_reader.read_exact(&mut buffer).await?;
+
+        let message = TorrentialBound::parse_from_bytes(&buffer)
+            .expect("response didn't deserialize correctly");
+
+        match message.type_.unwrap() {
+            TorrentialBoundType::GENERATE_MANIFEST => {
+                spawn(async move { generate_manifest(myself.clone(), message).await });
+            }
+            _ => {
+                myself.waitmap.insert(message.message_id.clone(), message);
+            }
+        }
+
+        Ok(())
+    }
+
+    /**
+    Long-lived subroutine that never returns, runs the recieve_loop and reconnects
+    as necessary
+    */
     async fn recieve_subroutine(myself: Arc<DropServer>, read_stream: OwnedReadHalf) -> ! {
         let mut buffered_reader = BufReader::new(read_stream);
 
         loop {
-            let mut length_buffer: [u8; 8] = [0; 8];
-            buffered_reader
-                .read_exact(&mut length_buffer)
-                .await
-                .expect("failed to read from internal pipe");
+            if let Err(err) = Self::recieve_loop(myself.clone(), &mut buffered_reader).await {
+                warn!("server disconnected with error: {:?}", err);
 
-            let length = usize::from_le_bytes(length_buffer);
-            let mut buffer = Vec::with_capacity(length);
+                let (drop_stream, _) = myself
+                    .server
+                    .accept()
+                    .await
+                    .expect("failed to accept new listener");
+                let (read, mut write) = drop_stream.into_split();
 
-            buffered_reader
-                .read_exact(&mut buffer)
-                .await
-                .expect("failed to read from internal pipe");
+                info!("reconnected to drop server");
 
-            let message =
-                Response::parse_from_bytes(&buffer).expect("response didn't deserialize correctly");
-            myself.waitmap.insert(message.message_id.clone(), message);
+                let mut lock = myself.write_stream.lock().await;
+                mem::swap(&mut *lock, &mut write);
+
+                let mut new_reader = BufReader::new(read);
+                mem::swap(&mut buffered_reader, &mut new_reader);
+            }
         }
     }
 
-    async fn wait_for_message_id<T>(&self, message_id: &str) -> Result<T, anyhow::Error>
+    /**
+    Uses the waitmap to wait for a response from a query
+    */
+    pub async fn wait_for_message_id<T>(&self, message_id: &str) -> Result<T, anyhow::Error>
     where
         T: protobuf::Message,
     {
         let message = self
             .waitmap
-            .wait(message_id.clone())
+            .wait(message_id)
             .await
             .ok_or(anyhow!("no response returned for value"))?;
 
         let message = message.value();
 
         match message.type_.unwrap() {
-            crate::proto::core::ResponseType::ERROR => {
+            crate::proto::core::TorrentialBoundType::ERROR => {
                 return Err(anyhow!(String::from_utf8(message.data.clone()).unwrap()));
             }
             _ => {
@@ -69,26 +115,41 @@ impl DropServer {
         }
     }
 
-    async fn send_message<T>(&self, message: T) -> Result<(), anyhow::Error>
+    /**
+    Sends a message, returning the message ID
+    */
+    pub async fn send_message<T>(
+        &self,
+        message_type: DropBoundType,
+        message: T,
+        message_id: Option<String>,
+    ) -> Result<String, anyhow::Error>
     where
         T: protobuf::Message,
     {
+        let mut query = DropBound::new();
+        query.message_id = message_id.unwrap_or(uuid::Uuid::new_v4().to_string());
+        query.type_ = EnumOrUnknown::new(message_type);
+        query.data = Vec::new();
+        message.write_to_vec(&mut query.data)?;
+
         let mut buf = Vec::new();
-        message.write_to_vec(&mut buf)?;
+        query.write_to_vec(&mut buf)?;
 
         {
-            let mut mutex_lock = self
-                .write_stream
-                .lock()
-                .expect("failed to lock send stream");
+            let mut mutex_lock = self.write_stream.lock().await;
             mutex_lock.write(&buf.len().to_le_bytes()).await?;
             mutex_lock.write_all(&buf).await?;
         };
 
-        Ok(())
+        Ok(query.message_id)
     }
 }
 
+/**
+Spins up the TCP listener, and waits for the first client to connect
+Also starts the recieve subroutine
+*/
 pub async fn create_drop_server() -> Result<Arc<DropServer>, anyhow::Error> {
     let server = TcpListener::bind("127.0.0.1:33148").await?;
 
@@ -97,11 +158,14 @@ pub async fn create_drop_server() -> Result<Arc<DropServer>, anyhow::Error> {
     let (read, write) = drop_stream.into_split();
 
     let client = Arc::new(DropServer {
+        server,
         write_stream: Mutex::new(write),
         waitmap: WaitMap::new(),
     });
 
     spawn(DropServer::recieve_subroutine(client.clone(), read));
+
+    info!("created client subroutine");
 
     Ok(client)
 }

@@ -1,7 +1,5 @@
 use std::{
-    cell::{LazyCell, OnceCell},
     io::Error,
-    rc::Rc,
     sync::{Arc, LazyLock},
 };
 
@@ -10,7 +8,7 @@ use axum::{
     body::Body,
     extract::{Path, State},
     http::HeaderMap,
-    response::{AppendHeaders, IntoResponse},
+    response::IntoResponse,
 };
 use bytes::Bytes;
 use dashmap::{DashMap, mapref::one::RefMut};
@@ -26,7 +24,8 @@ use tokio::sync::{Semaphore, SemaphorePermit};
 use tokio_util::io::ReaderStream;
 
 use crate::{
-    DownloadContext, GLOBAL_CONTEXT_SEMAPHORE, download::create_download_context, state::AppState,
+    DownloadContext, GLOBAL_CONTEXT_SEMAPHORE, downloads::download::create_download_context,
+    state::AppState,
 };
 
 type Aes128Ctr64LE = ctr::Ctr64LE<aes::Aes128>;

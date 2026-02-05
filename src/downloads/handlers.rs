@@ -1,9 +1,6 @@
 use std::{
     collections::HashMap,
-    sync::{
-        Arc,
-        atomic::{AtomicUsize, Ordering},
-    },
+    sync::Arc,
     task::Poll,
 };
 
@@ -24,7 +21,7 @@ use tokio_util::io::ReaderStream;
 
 use crate::{server::download::fetch_instance_games, state::AppState};
 
-pub async fn healthcheck(State(state): State<Arc<AppState>>) -> StatusCode {
+pub async fn healthcheck() -> StatusCode {
     StatusCode::OK
 }
 
@@ -60,7 +57,7 @@ const ZERO: [u8; 1024] = [0u8; _];
 impl AsyncRead for SpeedtestStream {
     fn poll_read(
         mut self: std::pin::Pin<&mut Self>,
-        cx: &mut std::task::Context<'_>,
+        _cx: &mut std::task::Context<'_>,
         buf: &mut tokio::io::ReadBuf<'_>,
     ) -> Poll<std::io::Result<()>> {
         if self.remaining > 0 {

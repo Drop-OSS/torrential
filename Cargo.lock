@@ -155,6 +155,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5b098575ebe77cb6d14fc7f32749631a6e44edbef6b796f89b020e99ba20d425"
 dependencies = [
  "axum-core",
+ "axum-macros",
  "bytes",
  "form_urlencoded",
  "futures-util",
@@ -198,6 +199,17 @@ dependencies = [
  "tower-layer",
  "tower-service",
  "tracing",
+]
+
+[[package]]
+name = "axum-macros"
+version = "0.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "604fde5e028fea851ce1d8570bbdc034bec850d157f7569d10f347d06808c05c"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn",
 ]
 
 [[package]]
@@ -544,8 +556,9 @@ dependencies = [
 
 [[package]]
 name = "droplet-rs"
-version = "0.12.2"
-source = "git+https://github.com/Drop-OSS/droplet-rs.git#05f7027b362fcc72b7cc621df8b5b0850b6cf082"
+version = "0.15.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ef23d187f7153bc3ce1c6a5440be1206e2aaf42b153825ddf2f8151f278539c5"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -2108,6 +2121,7 @@ dependencies = [
  "file_open_limit",
  "futures-util",
  "log",
+ "num_cpus",
  "pin-project-lite",
  "protobuf",
  "protobuf-codegen",
@@ -2120,6 +2134,7 @@ dependencies = [
  "tokio",
  "tokio-util",
  "url",
+ "uuid",
  "waitmap",
 ]
 
@@ -2233,9 +2248,9 @@ checksum = "b6c140620e7ffbb22c2dee59cafe6084a59b5ffc27a8859a5f0d494b5d52b6be"
 
 [[package]]
 name = "uuid"
-version = "1.19.0"
+version = "1.20.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e2e054861b4bd027cd373e18e8d8d8e6548085000e41290d95ce0c373a654b4a"
+checksum = "ee48d38b119b0cd71fe4141b30f5ba9c7c5d9f4e7a3a8b4a674e4b6ef789976f"
 dependencies = [
  "getrandom 0.3.4",
  "js-sys",
