@@ -29,11 +29,7 @@ async fn generate_manifest_raw(
     message: TorrentialBound,
 ) -> Result<(), anyhow::Error> {
     let manifest_message = GenerateManifest::parse_from_bytes(&message.data)?;
-    info!(
-        "seven zip install: {}",
-        *droplet_rs::versions::backends::SEVEN_ZIP_INSTALLED
-    );
-
+    
     let manifest = droplet_rs::manifest::generate_manifest_rusty(
         &PathBuf::from(manifest_message.version_dir),
         |progress| {
