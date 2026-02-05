@@ -15,11 +15,22 @@ use tokio::{
 use waitmap::WaitMap;
 
 use crate::{
-    droplet::manifest::generate_manifest,
+    droplet::{
+        backend::{has_backend_rpc, list_files_rpc, peek_file_rpc},
+        call_rpc,
+        cert::generate_client_cert_rpc,
+        manifest::generate_manifest_rpc,
+    },
     proto::core::{DropBound, DropBoundType, TorrentialBound, TorrentialBoundType},
 };
 
 pub mod download;
+
+macro_rules! spawn_rpc {
+    ($myself:ident, $message:ident, $func_name:ident) => {
+        spawn(async move { call_rpc($myself.clone(), $message, $func_name).await });
+    };
+}
 
 pub struct DropServer {
     server: TcpListener,
@@ -50,7 +61,22 @@ impl DropServer {
 
         match message.type_.unwrap() {
             TorrentialBoundType::GENERATE_MANIFEST => {
-                spawn(async move { generate_manifest(myself.clone(), message).await });
+                spawn_rpc!(myself, message, generate_manifest_rpc);
+            }
+            TorrentialBoundType::GENERATE_ROOT_CA => {
+                spawn_rpc!(myself, message, generate_manifest_rpc);
+            }
+            TorrentialBoundType::GENERATE_CLIENT_CERT => {
+                spawn_rpc!(myself, message, generate_client_cert_rpc);
+            }
+            TorrentialBoundType::LIST_FILES_QUERY => {
+                spawn_rpc!(myself, message, list_files_rpc);
+            }
+            TorrentialBoundType::HAS_BACKEND_QUERY => {
+                spawn_rpc!(myself, message, has_backend_rpc);
+            }
+            TorrentialBoundType::PEEK_FILE_QUERY => {
+                spawn_rpc!(myself, message, peek_file_rpc);
             }
             _ => {
                 myself.waitmap.insert(message.message_id.clone(), message);

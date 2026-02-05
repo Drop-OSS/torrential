@@ -3,33 +3,35 @@ use std::{
     sync::{Arc, LazyLock},
 };
 
-use log::{info, warn};
+use log::info;
 use protobuf::Message;
 use serde_json::json;
 use tokio::{spawn, sync::Semaphore};
 
 use crate::{
-    droplet,
     proto::{
         core::{DropBoundType, TorrentialBound},
-        droplet::{
-            GenerateManifest, ManifestComplete, ManifestError, ManifestLog, ManifestProgress,
-        },
+        droplet::{GenerateManifest, ManifestComplete, ManifestLog, ManifestProgress},
     },
     server::DropServer,
 };
 
 static READER_SEMAPHORE: LazyLock<Semaphore> = LazyLock::new(|| {
-    let cores = num_cpus::get();
+    let cores = std::env::var("READER_THREADS")
+        .ok()
+        .map(|v| str::parse::<usize>(&v).ok())
+        .flatten()
+        .unwrap_or(num_cpus::get() / 2);
+    info!("using {} import threads", cores);
     Semaphore::new(cores)
 });
 
-async fn generate_manifest_raw(
+pub async fn generate_manifest_rpc(
     server: Arc<DropServer>,
     message: TorrentialBound,
 ) -> Result<(), anyhow::Error> {
     let manifest_message = GenerateManifest::parse_from_bytes(&message.data)?;
-    
+
     let manifest = droplet_rs::manifest::generate_manifest_rusty(
         &PathBuf::from(manifest_message.version_dir),
         |progress| {
@@ -76,26 +78,4 @@ async fn generate_manifest_raw(
         .await?;
 
     Ok(())
-}
-
-pub async fn generate_manifest(server: Arc<DropServer>, message: TorrentialBound) {
-    let message_id = message.message_id.clone();
-    warn!("generating manifest...");
-    let result = generate_manifest_raw(server.clone(), message).await;
-    info!("manifest generation exited");
-    if let Err(err) = result {
-        warn!("manifest generation failed with err: {:?}", err);
-        let mut manifest_err = ManifestError::new();
-        manifest_err.error = err.to_string();
-        let _ = server
-            .send_message(
-                DropBoundType::MANIFEST_ERROR,
-                manifest_err,
-                Some(message_id),
-            )
-            .await
-            .inspect_err(|err| {
-                warn!("failed to send manifest err: {err:?}");
-            });
-    }
 }

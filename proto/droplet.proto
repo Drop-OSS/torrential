@@ -1,5 +1,9 @@
 syntax = "proto3";
 
+message RpcError {
+  string error = 1;
+}
+
 /// Certificates
 message RootCertQuery {}
 message RootCertResponse {
@@ -32,6 +36,26 @@ message ManifestLog {
 message ManifestComplete {
   string manifest = 1;
 }
-message ManifestError {
-  string error = 1;
+
+/// Backend tools
+message HasBackendQuery {
+  string path = 1;
+}
+message HasBackendResponse {
+  bool result = 1;
+}
+
+message ListFilesQuery {
+  string path = 1;
+}
+message ListFilesResponse {
+  repeated string files = 1;
+}
+
+message PeekFileQuery {
+  string path = 1;
+  string filename = 2;
+}
+message PeekFileResponse {
+  uint64 size = 1;
 }
