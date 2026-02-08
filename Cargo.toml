@@ -66,3 +66,4 @@ tempfile = "3.23.0"
 
 [build-dependencies]
 protobuf-codegen = "3.7.2"
+protoc-bin-vendored = "3.2.0"

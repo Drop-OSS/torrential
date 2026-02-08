@@ -16,6 +16,7 @@ fn main() {
     });
 
     Codegen::new()
+        .protoc_path(&protoc_bin_vendored::protoc_bin_path().unwrap())
         .inputs(files)
         .include("proto")
         .out_dir(OUT_DIR)
