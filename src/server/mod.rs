@@ -18,7 +18,7 @@ use crate::{
     droplet::{
         backend::{has_backend_rpc, list_files_rpc, peek_file_rpc},
         call_rpc,
-        cert::generate_client_cert_rpc,
+        cert::{generate_client_cert_rpc, generate_root_ca_rpc},
         manifest::generate_manifest_rpc,
     },
     proto::core::{DropBound, DropBoundType, TorrentialBound, TorrentialBoundType},
@@ -64,7 +64,7 @@ impl DropServer {
                 spawn_rpc!(myself, message, generate_manifest_rpc);
             }
             TorrentialBoundType::GENERATE_ROOT_CA => {
-                spawn_rpc!(myself, message, generate_manifest_rpc);
+                spawn_rpc!(myself, message, generate_root_ca_rpc);
             }
             TorrentialBoundType::GENERATE_CLIENT_CERT => {
                 spawn_rpc!(myself, message, generate_client_cert_rpc);

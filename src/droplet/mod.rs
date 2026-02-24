@@ -13,9 +13,10 @@ where
     T: AsyncFn(Arc<DropServer>, TorrentialBound) -> Result<(), anyhow::Error>,
 {
     let message_id = message.message_id.clone();
+    let message_type = message.type_.enum_value().unwrap();
     let result = rpc(server.clone(), message).await;
     if let Err(err) = result {
-        warn!("manifest generation failed with err: {err:?}");
+        warn!("rpc call for {message_type:?} failed with error: {err:?}");
         let mut manifest_err = RpcError::new();
         manifest_err.error = err.to_string();
         let _ = server
