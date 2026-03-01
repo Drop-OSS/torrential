@@ -16,13 +16,14 @@ use crate::{
     server::DropServer,
 };
 
-static READER_SEMAPHORE: LazyLock<Semaphore> = LazyLock::new(|| {
+// TODO: re-write the droplet interface so it takes a 'static reference instead of an arc
+static READER_SEMAPHORE: LazyLock<Arc<Semaphore>> = LazyLock::new(|| {
     let cores = std::env::var("READER_THREADS")
         .ok()
         .and_then(|v| str::parse::<usize>(&v).ok())
         .unwrap_or(num_cpus::get() / 2);
     info!("using {cores} import threads");
-    Semaphore::new(cores)
+    Arc::new(Semaphore::new(cores))
 });
 
 pub async fn generate_manifest_rpc(
@@ -61,7 +62,7 @@ pub async fn generate_manifest_rpc(
                     .await;
             });
         },
-        Some(&READER_SEMAPHORE),
+        Some(READER_SEMAPHORE.clone()),
     )
     .await?;
 
